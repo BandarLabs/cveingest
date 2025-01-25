@@ -1,0 +1,6 @@
+google-generativeai
+google.ai.generativelanguage
+beautifulsoup4
+fastapi
+gradio
+python-dotenv

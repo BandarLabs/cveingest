@@ -1,0 +1,23 @@
+.env
+myenv/
+reference_crawlers/__pycache__/
+
+# Optionally, ignore other files or folders as needed
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.DS_Store
+
+# Ignore OS-specific files
+# Windows
+Thumbs.db
+desktop.ini
+# macOS
+.DS_Store
+
+# Ignore Python-specific compiled files
+__pycache__/
+*.py[cod]
+*$py.class

@@ -1,0 +1,7 @@
+This is this week's vulnerability list.
+
+Focus on those which will be interesting to principal engineers, top security researchers - - do not address them as it though, just the context, discuss code fixes if its there. Choose the ones which will be interesting to listeners.
+
+Do not read out numeric and cve numbers - they are jarring.
+
+Do not add fluff like generic security gyan about importance of code review etc, those are already known to listeners, just specifics of this weeks vulnerabilities will do.

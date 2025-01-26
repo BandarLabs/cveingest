@@ -187,6 +187,13 @@ def generate_ssml_from_json(json_data, ssml_prompt):
 
     return ssml_response
 
+
+def download_file(content, filename):
+    content_as_str = json.dumps(content) if isinstance(content, dict) else str(content)
+    with open(filename, "w") as file:
+        file.write(content_as_str)
+
+
 with gr.Blocks() as demo:
     with gr.Row():
         with gr.Column():
@@ -206,9 +213,12 @@ with gr.Blocks() as demo:
             )
 
         with gr.Column():
-            json_output = gr.JSON(label="Processed Results")
+            json_output = gr.JSON(label="Raw JSON Format")
             status_output = gr.Textbox(label="Processing Status")
-            length_output = gr.Textbox(label="JSON Length", interactive=False)
+            length_output = gr.Textbox(label="Article Format", interactive=False)
+            download_json_button = gr.Button("Download JSON")
+            download_length_button = gr.Button("Download Article Format")
+            external_link = gr.HTML("<a href='https://notebooklm.google.com' target='_blank'>Go to NotebookLM</a>")
 
     process_button.click(
         fn=process_dates,
@@ -220,4 +230,22 @@ with gr.Blocks() as demo:
         outputs=length_output
     )
 
-demo.launch()
+    def download_json(json_data):
+        download_file(json_data, "cveRAW.txt")
+
+    def download_article(article):
+        download_file(article, "cveArticle.txt")
+
+    download_json_button.click(
+        fn=download_json,
+        inputs=[json_output],
+        outputs=[]
+    )
+
+    download_length_button.click(
+        fn=download_article,
+        inputs=[length_output],
+        outputs=[]
+    )
+
+demo.launch(auth=('hacker', 'news'), server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 8080)))

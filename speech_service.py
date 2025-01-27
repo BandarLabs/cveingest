@@ -1,15 +1,19 @@
 from dotenv import load_dotenv
 import azure.cognitiveservices.speech as speechsdk
-from app.services.openai_service import OpenAIService
+from gemini_service import GeminiService
 import os
 import re
 import textwrap
 import xml.etree.ElementTree as ET
-
+import time
+import requests
+import uuid
+import zipfile
+from io import BytesIO
 
 load_dotenv()
 
-openai_service = OpenAIService()
+gemini_service = GeminiService()
 
 class MemoryStreamCallback(speechsdk.audio.PushAudioOutputStreamCallback):
     def __init__(self):
@@ -33,9 +37,65 @@ class SpeechService:
         self.speech_key = os.environ.get("SPEECH_KEY")
         self.speech_region = os.environ.get("SPEECH_REGION")
 
+    # def text_to_mp3(self, ssml_string: str) -> bytes | None:
+    #     """
+    #     Converts a string to an mp3 bytes object using Azure Text to Speech
+
+    #     Args:
+    #         ssml_string (str): Text to be converted to speech
+
+    #     Returns:
+    #         bytes | None: Returns mp3 bytes object, None if error
+    #     """
+
+    #     MAX_RETRIES = 3
+    #     RETRY_DELAY = 2
+
+    #     if not self.speech_key or not self.speech_region:
+    #         return None
+    #     print(self.speech_key, ssml_string)
+
+    #     # This example requires environment variables named "SPEECH_KEY" and "SPEECH_REGION"
+    #     speech_config = speechsdk.SpeechConfig(subscription=os.environ.get('SPEECH_KEY'), region=os.environ.get('SPEECH_REGION'))
+    #     print("s1")
+    #     # The neural multilingual voice can speak different languages based on the input text.
+    #     speech_config.speech_synthesis_voice_name = 'en-US-AvaMultilingualNeural'
+
+    #     speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
+
+    #     for attempt in range(MAX_RETRIES):
+    #         try:
+    #             # Creates a memory stream as the audio output stream instead of a file.
+    #             stream_callback = MemoryStreamCallback()
+    #             audio_stream = speechsdk.audio.AudioOutputConfig(stream=speechsdk.audio.PushAudioOutputStream(stream_callback))
+
+    #             speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_stream)
+
+    #             result = speech_synthesizer.speak_ssml_async(ssml_string).get()
+
+    #             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+    #                 return stream_callback.get_audio_data()
+    #             elif result.reason == speechsdk.ResultReason.Canceled:
+    #                 cancellation_details = result.cancellation_details
+    #                 print("Speech synthesis canceled: {}".format(cancellation_details.reason))
+    #                 if cancellation_details.reason == speechsdk.CancellationReason.Error:
+    #                     print("Error details: {}".format(cancellation_details.error_details))
+    #                 if attempt < MAX_RETRIES - 1:
+    #                     print("Retrying... (attempt {}/{})".format(attempt + 1, MAX_RETRIES))
+    #                     time.sleep(RETRY_DELAY)
+    #                 else:
+    #                     return b""
+    #         except Exception as e:
+    #             print("Exception occurred: {}".format(str(e)))
+    #             if attempt < MAX_RETRIES - 1:
+    #                 print("Retrying... (attempt {}/{})".format(attempt + 1, MAX_RETRIES))
+    #                 time.sleep(RETRY_DELAY)
+    #             else:
+    #                 return b""
+
     def text_to_mp3(self, ssml_string: str) -> bytes | None:
         """
-        Converts a string to an mp3 bytes object using Azure Text to Speech
+        Converts a string to an mp3 bytes object using Azure Text to Speech Batch Synthesis API.
 
         Args:
             ssml_string (str): Text to be converted to speech
@@ -44,38 +104,80 @@ class SpeechService:
             bytes | None: Returns mp3 bytes object, None if error
         """
 
+        MAX_RETRIES = 3
+        RETRY_DELAY = 2
+
         if not self.speech_key or not self.speech_region:
             return None
-        print(self.speech_key, ssml_string)
 
-        # This example requires environment variables named "SPEECH_KEY" and "SPEECH_REGION"
-        speech_config = speechsdk.SpeechConfig(subscription=os.environ.get('SPEECH_KEY'), region=os.environ.get('SPEECH_REGION'))
-        print("s1")
-        # The neural multilingual voice can speak different languages based on the input text.
-        speech_config.speech_synthesis_voice_name = 'en-US-AvaMultilingualNeural'
+        synthesis_id = str(uuid.uuid4())
+        put_url = f"https://{self.speech_region}.api.cognitive.microsoft.com/texttospeech/batchsyntheses/{synthesis_id}?api-version=2024-04-01"
 
-        speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
+        headers = {
+            "Ocp-Apim-Subscription-Key": self.speech_key,
+            "Content-Type": "application/json"
+        }
 
-        # # Creates a memory stream as the audio output stream instead of a file.
-        # audio_config = speechsdk.audio.AudioOutputConfig(stream=speechsdk.audio.PushAudioOutputStream(speechsdk.audio.MemoryStreamCallback()), use_default_speaker=True)
-        # speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+        body = {
+            "description": "my ssml test",
+            "inputKind": "SSML",
+            "inputs": [
+                {"content": ssml_string}
+            ],
+            "properties": {
+                "outputFormat": "riff-24khz-16bit-mono-pcm",
+                "wordBoundaryEnabled": False,
+                "sentenceBoundaryEnabled": False,
+                "concatenateResult": False,
+                "decompressOutputFiles": False
+            }
+        }
 
-        # Creates a memory stream as the audio output stream instead of a file.
-        stream_callback = MemoryStreamCallback()
-        audio_stream = speechsdk.audio.AudioOutputConfig(stream=speechsdk.audio.PushAudioOutputStream(stream_callback))
+        for attempt in range(MAX_RETRIES):
+            try:
+                put_response = requests.put(put_url, headers=headers, json=body)
+                put_response.raise_for_status()
 
-        speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_stream)
+                # Polling operation status
+                status_url = f"https://{self.speech_region}.api.cognitive.microsoft.com/texttospeech/batchsyntheses/{synthesis_id}?api-version=2024-04-01"
+                while True:
+                    time.sleep(RETRY_DELAY)
+                    status_response = requests.get(status_url, headers=headers)
+                    status_response.raise_for_status()
+                    status = status_response.json()
+                    operation_status = status.get("status")
 
-        result = speech_synthesizer.speak_ssml_async(ssml_string).get()
+                    if operation_status == "Succeeded":
+                        download_url = status["outputs"]["result"]
+                        zip_response = requests.get(download_url)
+                        zip_response.raise_for_status()
 
-        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-            return stream_callback.get_audio_data()
-        elif result.reason == speechsdk.ResultReason.Canceled:
-            cancellation_details = result.cancellation_details
-            print("Speech synthesis canceled: {}".format(cancellation_details.reason))
-            if cancellation_details.reason == speechsdk.CancellationReason.Error:
-                print("Error details: {}".format(cancellation_details.error_details))
-            return b""
+                        # Extract .wav file from zip
+                        with zipfile.ZipFile(BytesIO(zip_response.content)) as zip_file:
+                            for file_name in zip_file.namelist():
+                                if file_name.endswith(".wav"):
+                                    with zip_file.open(file_name) as audio_file:
+                                        audio_content = audio_file.read()
+
+                                        # # Save the file locally
+                                        # with open(file_name, 'wb') as local_file:
+                                        #     local_file.write(audio_content)
+
+                                        return audio_content
+                    elif operation_status == "Failed":
+                        raise Exception("Batch synthesis failed")
+                    elif operation_status in ["Running", "NotStarted"]:
+                        continue
+                    else:
+                        raise Exception(f"Unexpected operation status: {operation_status}")
+
+            except Exception as e:
+                print(f"Exception occurred: {str(e)}")
+                if attempt < MAX_RETRIES - 1:
+                    print(f"Retrying... (attempt {attempt + 1}/{MAX_RETRIES})")
+                    time.sleep(RETRY_DELAY)
+                else:
+                    return None
 
     def calculate_duration(self, text_line, wpm=135):
         words = len(text_line.split())
@@ -174,6 +276,7 @@ class SpeechService:
             ET.fromstring(ssml)
             return True
         except ET.ParseError:
+            print(ssml)
             return False
 
     # Function to sanitize SSML by removing invalid break and code tags
@@ -208,7 +311,7 @@ class SpeechService:
         attempts = 0
         while attempts < max_retries:
             # Call the OpenAI function to generate SSML
-            ssml_response = openai_service.call_openai_for_response(file_paths, prompt)
+            ssml_response = gemini_service.call_gemini_flash_for_ssml(file_paths, prompt)
             filtered_ssml_response = '\n'.join(line for line in ssml_response.split('\n') if '```' not in line)
             # Sanitize the SSML
             sanitized_ssml = self.sanitize_ssml(filtered_ssml_response)
@@ -224,3 +327,11 @@ class SpeechService:
         raise ValueError("Failed to generate valid SSML after multiple attempts.")
 
 
+if __name__ == '__main__':
+    ss = SpeechService()
+    ss.text_to_mp3("""<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="en-US"><voice name="en-US-AvaMultilingualNeural">
+And to our listeners, that’s all for this week’s episode of “Secure Code Insights.” Stay tuned for more next week.
+<break time="500ms" />
+Happy coding and stay secure.
+</voice>
+</speak>""")

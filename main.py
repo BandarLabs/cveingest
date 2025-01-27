@@ -9,9 +9,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import gradio as gr
 
-import json
 import tempfile
 from gemini_service import GeminiService
+from speech_service import SpeechService
 
 
 def clean_advisories(advisories):
@@ -108,39 +108,6 @@ def process_advisories(request: AdvisoryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
-# To run the app, use the command:
-# uvicorn your_script_name:app --reload
-
-
-# if __name__ == "__main__":
-#     TOKEN = os.environ.get("GITHUB_TOKEN")
-#     start_date = '2025-01-15'
-#     end_date = '2025-01-16'
-
-#     results = []
-#     with ThreadPoolExecutor(max_workers=4) as executor:
-#         futures = {
-#             executor.submit(process_day, start, end, 'github', TOKEN): (start, end)
-#             for start, end in generate_date_ranges(start_date, end_date)
-#         }
-
-#         for future in as_completed(futures):
-#             start, end = futures[future]
-#             try:
-#                 results.extend(future.result())
-#                 print(f"Completed processing for date range {start} to {end}")
-#             except Exception as e:
-#                 print(f"Error processing date range {start} to {end}: {e}")
-
-#     with open("critical_advisories_with_references.json", "w") as f:
-#         json.dump(results, f, indent=4)
-
-#     print(f"Processed and saved {len(results)} critical advisories with detailed references.")
-import os
-import json
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import gradio as gr
 
 def process_dates(start_date, end_date, token=None):
     if not token:
@@ -193,6 +160,11 @@ def download_file(content, filename):
     with open(filename, "w") as file:
         file.write(content_as_str)
 
+def handle_temporary_file(json_data) -> list:
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.json') as temp_file:
+        temp_file.write(json.dumps(json_data))
+        return [temp_file.name]
+
 
 with gr.Blocks() as demo:
     with gr.Row():
@@ -207,27 +179,47 @@ with gr.Blocks() as demo:
                 examples=[
                     ["Create a detailed article on this week's vulnerability. Make it very detailed, use code examples whenever possible."],
                     ["Generate a podcast script discussing the latest trends in tech. Make it very detailed, use code examples whenever possible."],
-                    ["Write a comprehensive report on new cybersecurity threats. Make it very detailed, use code examples whenever possible."]
+                    ["Write a comprehensive report on new cybersecurity threats. Make it very detailed, use code examples whenever possible."],
+                    ["""Host name is Ava. Dont waste too much time on intro. Can you convert it into a podcast so that someone could listen to it and understand what's going on, also discuss project structure or go in detail for some files, long 8-10 min podcast is fine by me - make it a ssml similar to this: <speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\">\n<voice name=\"en-US-AvaMultilingualNeural\">\nWelcome to Next Gen Innovators!  (no need to open links) ..
+                        also make it a conversation between host and guest of a podcast, question answer kind. \n\n<break time=\"500ms\" />\nI'm your host, Ava, and today we’re diving into an exciting topic: how students can embark on their entrepreneurial journey right from college.\n<break time=\"700ms\" />\nJoining us is Arun Sharma, a seasoned entrepreneur with over two decades of experience and a passion for mentoring young innovators.\n<break time=\"500ms\" />\nArun, it’s a pleasure to have you here.\n</voice>\n\n<voice name=\""en-US-DustinMultilingualNeural"\">\n    Thank you, Ava.\n    <break time=\"300ms\" />\n    It’s great to be here. I’m excited to talk about how students can channel their creativity and energy into building impactful ventures.\n</voice> ..\n", Use "en-US-DustinMultilingualNeural" voice as guest (and must use en-US-AvaMultilingualNeural voice as host always but her actual name can be something else). Add little bit of fillers like umm or uh so that it feels natural (dont over do it),
+                        This is this week's vulnerability list.
+
+                        Focus on those which will be interesting to principal engineers, top security researchers - - do not address them as it though, just the context, discuss code fixes if its there. Choose the ones which will be interesting to listeners.
+
+                        Do not read out numeric and cve numbers - they are jarring.
+
+                        Do not add fluff like generic security gyan about importance of code review etc, those are already known to listeners, just specifics of this weeks vulnerabilities will do.. Long answers all the time makes it monotonous.
+                        Make it a 20 minute long or longer podcast if possible.  Give atleast 200 voice tags for the host + Same amount of voice tags for guest. Slowly count them and re-write the ssml if its falling short and then return the ssml."""]
                 ],
                 inputs=[ssml_prompt_input]
             )
 
         with gr.Column():
+            audio_output = gr.Audio(label="Generated Podcast")
             json_output = gr.JSON(label="Raw JSON Format")
             status_output = gr.Textbox(label="Processing Status")
-            length_output = gr.Textbox(label="Article Format", interactive=False)
+            ssml_output = gr.Textbox(label="Article Format", interactive=False)
+
             download_json_button = gr.Button("Download JSON")
             download_length_button = gr.Button("Download Article Format")
             external_link = gr.HTML("<a href='https://notebooklm.google.com' target='_blank'>Go to NotebookLM</a>")
-
+    temp_file_paths = gr.State()
     process_button.click(
         fn=process_dates,
         inputs=[start_date_input, end_date_input, token_input],
         outputs=[json_output, status_output],
     ).then(
-        fn=generate_ssml_from_json,
-        inputs=[json_output, ssml_prompt_input],
-        outputs=length_output
+        fn=lambda x: handle_temporary_file(x),
+        inputs=[json_output],
+        outputs=temp_file_paths  # output variable name
+    ).then(
+        fn=SpeechService().generate_ssml_with_retry,
+        inputs=[temp_file_paths, ssml_prompt_input],
+        outputs=ssml_output
+    ).then(
+        fn=SpeechService().text_to_mp3,
+        inputs=[ssml_output],
+        outputs=audio_output
     )
 
     def download_json(json_data):
@@ -244,7 +236,7 @@ with gr.Blocks() as demo:
 
     download_length_button.click(
         fn=download_article,
-        inputs=[length_output],
+        inputs=[ssml_output],
         outputs=[]
     )
 

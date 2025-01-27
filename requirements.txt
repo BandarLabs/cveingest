@@ -4,3 +4,5 @@ beautifulsoup4
 fastapi
 gradio
 python-dotenv
+requests
+azure-cognitiveservices-speech

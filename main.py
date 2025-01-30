@@ -74,6 +74,7 @@ def process_day(start_date, end_date, source, token):
 
     # Assuming advisory object has 'references' and need processing
     for idx, advisory in enumerate(advisories, start=1):
+        print(idx)
         detailed_references = []
         for ref_idx, reference_url in enumerate(advisory.references, start=1):
             crawler = ReferenceCrawlerFactory.get_crawler(reference_url)

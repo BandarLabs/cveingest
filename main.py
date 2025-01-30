@@ -157,16 +157,29 @@ def generate_ssml_from_json(json_data, ssml_prompt):
 
 def download_file(content, filename):
     content_as_str = json.dumps(content) if isinstance(content, dict) else str(content)
-    with open(filename, "w") as file:
+    temp_path = os.path.join("temp", filename)  # Create a directory named 'temp' to store temporary files
+    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+    with open(temp_path, "w") as file:
         file.write(content_as_str)
+    return temp_path  # return the path to the file
+
 
 def handle_temporary_file(json_data) -> list:
     with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.json') as temp_file:
         temp_file.write(json.dumps(json_data))
         return [temp_file.name]
 
+def handle_error(fn):
+    def wrapper(*args, **kwargs):
+        try:
+            result = fn(*args, **kwargs)
+            return result, ""  # no error
+        except Exception as e:
+            return None, str(e)
+    return wrapper
 
 with gr.Blocks() as demo:
+
     with gr.Row():
         with gr.Column():
             start_date_input = gr.Textbox(label="Start Date (YYYY-MM-DD)")
@@ -203,6 +216,11 @@ with gr.Blocks() as demo:
             download_json_button = gr.Button("Download JSON")
             download_length_button = gr.Button("Download Article Format")
             external_link = gr.HTML("<a href='https://notebooklm.google.com' target='_blank'>Go to NotebookLM</a>")
+
+    with gr.Row():
+        # Error display widget
+        error_output = gr.Textbox(label="Error Output", interactive=False)
+
     temp_file_paths = gr.State()
     process_button.click(
         fn=process_dates,
@@ -213,31 +231,32 @@ with gr.Blocks() as demo:
         inputs=[json_output],
         outputs=temp_file_paths  # output variable name
     ).then(
-        fn=SpeechService().generate_ssml_with_retry,
+        fn=handle_error(SpeechService().generate_ssml_with_retry),
         inputs=[temp_file_paths, ssml_prompt_input],
-        outputs=ssml_output
+        outputs=[ssml_output, error_output]
     ).then(
-        fn=SpeechService().text_to_mp3,
+        fn=handle_error(SpeechService().text_to_mp3),
         inputs=[ssml_output],
-        outputs=audio_output
+        outputs=[audio_output, error_output]
     )
 
     def download_json(json_data):
-        download_file(json_data, "cveRAW.txt")
+        return download_file(json_data, "cveRAW.txt")
 
     def download_article(article):
-        download_file(article, "cveArticle.txt")
+        return download_file(article, "cveArticle.txt")
 
     download_json_button.click(
         fn=download_json,
         inputs=[json_output],
-        outputs=[]
+        outputs=[gr.File()]
     )
 
     download_length_button.click(
         fn=download_article,
         inputs=[ssml_output],
-        outputs=[]
+        outputs=[gr.File()]
     )
+
 
 demo.launch(auth=('hacker', 'news'), server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 8080)))

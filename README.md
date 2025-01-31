@@ -9,7 +9,7 @@ Using this tool, you can gather and convert CVEs published by `GitHub advisories
 
 
 
-### 📦 How to launch the tool 
+### 📦 How to launch the tool
 
 ```bash
 export GITHUB_TOKEN=
@@ -25,6 +25,7 @@ export SPEECH_KEY=F76..
 
 
 ```bash
+pip install -r requirements.txt
 python main.py
 ```
 ![image](https://github.com/user-attachments/assets/94750d92-2dc2-4b25-9a08-ba8a590ae728)
@@ -34,7 +35,7 @@ python main.py
 
 * Enter the date range for the CVEs published (or choose one from examples).
 * Keep the range at most 3 days.
-* Set the SSML prompt from the example. 
+* Set the SSML prompt from the example.
 * Click on Process Advisories
 
 

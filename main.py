@@ -164,6 +164,13 @@ def download_file(content, filename):
         file.write(content_as_str)
     return temp_path  # return the path to the file
 
+def create_download_json(json_data):
+    path = download_file(json_data, "cveRAW.txt")
+    return path
+
+def create_download_article(article):
+    path = download_file(article, "cveArticle.txt")
+    return path
 
 def handle_temporary_file(json_data) -> list:
     with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.json') as temp_file:
@@ -179,49 +186,117 @@ def handle_error(fn):
             return None, str(e)
     return wrapper
 
-with gr.Blocks() as demo:
 
-    with gr.Row():
-        with gr.Column():
-            start_date_input = gr.Textbox(label="Start Date (YYYY-MM-DD)")
-            end_date_input = gr.Textbox(label="End Date (YYYY-MM-DD)")
-            token_input = gr.Textbox(label="GitHub Token (Optional)", type="password")
-            ssml_prompt_input = gr.Textbox(label="SSML Prompt (Optional)", lines=10)
-            process_button = gr.Button("Process")
+with gr.Blocks(theme=gr.themes.Soft(), title="Security Advisory Analyzer") as demo:
+    # --- Header Section ---
+    gr.Markdown("""
+    <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #434343, #000000); border-radius: 10px;">
+        <h1 style="color: white; margin-bottom: 10px;">🔒 Security Advisory Analyzer</h1>
+        <h3 style="color: #e0e0e0; margin-top: 0;">Transform CVEs into Actionable Insights & Podcasts</h3>
+    </div>
+    """)
 
-            examples = gr.Examples(
-                examples=[
-                    ["Create a detailed article on this week's vulnerability. Make it very detailed, use code examples whenever possible."],
-                    ["Generate a podcast script discussing the latest trends in tech. Make it very detailed, use code examples whenever possible."],
-                    ["Write a comprehensive report on new cybersecurity threats. Make it very detailed, use code examples whenever possible."],
-                    ["""Host name is Ava. Dont waste too much time on intro. Can you convert it into a podcast so that someone could listen to it and understand what's going on, also discuss project structure or go in detail for some files, long 8-10 min podcast is fine by me - make it a ssml similar to this: <speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\">\n<voice name=\"en-US-AvaMultilingualNeural\">\nWelcome to Next Gen Innovators!  (no need to open links) ..
-                        also make it a conversation between host and guest of a podcast, question answer kind. \n\n<break time=\"500ms\" />\nI'm your host, Ava, and today we’re diving into an exciting topic: how students can embark on their entrepreneurial journey right from college.\n<break time=\"700ms\" />\nJoining us is Arun Sharma, a seasoned entrepreneur with over two decades of experience and a passion for mentoring young innovators.\n<break time=\"500ms\" />\nArun, it’s a pleasure to have you here.\n</voice>\n\n<voice name=\""en-US-DustinMultilingualNeural"\">\n    Thank you, Ava.\n    <break time=\"300ms\" />\n    It’s great to be here. I’m excited to talk about how students can channel their creativity and energy into building impactful ventures.\n</voice> ..\n", Use "en-US-DustinMultilingualNeural" voice as guest (and must use en-US-AvaMultilingualNeural voice as host always but her actual name can be something else). Add little bit of fillers like umm or uh so that it feels natural (dont over do it),
-                        This is this week's vulnerability list.
+    # --- Main Content Section ---
+    with gr.Tabs():
+        with gr.TabItem("📅 Data Processing"):
+            with gr.Row():
+                # Input Column
+                with gr.Column(scale=1, variant="panel"):
+                    gr.Markdown("### 1. Date Range & Credentials")
+                    start_date_input = gr.Textbox(label="Start Date (YYYY-MM-DD)", placeholder="2025-01-01")
+                    end_date_input = gr.Textbox(label="End Date (YYYY-MM-DD)", placeholder="2025-01-03")
+                    token_input = gr.Textbox(label="GitHub Token (Optional)", type="password",
+                                          placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
 
-                        Focus on those which will be interesting to principal engineers, top security researchers - - do not address them as it though, just the context, discuss code fixes if its there. Choose the ones which will be interesting to listeners.
+                    with gr.Accordion("💡 Example Date Ranges", open=False):
+                        gr.Examples(
+                            examples=[["2025-01-01", "2025-01-03"]],
+                            inputs=[start_date_input, end_date_input]
+                        )
 
-                        Do not read out numeric and cve numbers - they are jarring.
+                # SSML Configuration Column
+                with gr.Column(scale=1, variant="panel"):
+                    gr.Markdown("### 2. Content Generation Settings")
+                    ssml_prompt_input = gr.Textbox(label="SSML Prompt", lines=8,
+                                                placeholder="Enter your podcast ssml generation instructions here...")
 
-                        Do not add fluff like generic security gyan about importance of code review etc, those are already known to listeners, just specifics of this weeks vulnerabilities will do.. Long answers all the time makes it monotonous.
-                        Make it a 20 minute long or longer podcast if possible.  Give atleast 200 voice tags for the host + Same amount of voice tags for guest. Slowly count them and re-write the ssml if its falling short and then return the ssml."""]
-                ],
-                inputs=[ssml_prompt_input]
-            )
+                    with gr.Accordion("📚 Example Prompts", open=False):
+                        examples = gr.Examples(
+                            examples=[
+                                ["""Host name is Ava. Dont waste too much time on intro. Can you convert it into a podcast so that someone could listen to it and understand what's going on - make it a ssml similar to this: <speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\">\n<voice name=\"en-US-AvaMultilingualNeural\">\nWelcome to Next Gen Innovators!  (no need to open links) ..
+                                    also make it a conversation between host and guest of a podcast, question answer kind. \n\n<break time=\"500ms\" />\nI'm your host, Ava, and today we’re diving into an exciting topic: how students can embark on their entrepreneurial journey right from college.\n<break time=\"700ms\" />\nJoining us is Arun Sharma, a seasoned entrepreneur with over two decades of experience and a passion for mentoring young innovators.\n<break time=\"500ms\" />\nArun, it’s a pleasure to have you here.\n</voice>\n\n<voice name=\""en-US-DustinMultilingualNeural"\">\n    Thank you, Ava.\n    <break time=\"300ms\" />\n    It’s great to be here. I’m excited to talk about how students can channel their creativity and energy into building impactful ventures.\n</voice> ..\n", Use "en-US-DustinMultilingualNeural" voice as guest (and must use en-US-AvaMultilingualNeural voice as host always but her actual name can be something else). Add little bit of fillers like umm or uh so that it feels natural (dont over do it),
+                                    This is this week's vulnerability list.
 
-        with gr.Column():
-            audio_output = gr.Audio(label="Generated Podcast")
-            json_output = gr.JSON(label="Raw JSON Format")
-            status_output = gr.Textbox(label="Processing Status")
-            ssml_output = gr.Textbox(label="Article Format", interactive=False)
+                                    Focus on those which will be interesting to principal engineers, top security researchers - - do not address them as it though, just the context, discuss code fixes if its there. Choose the ones which will be interesting to listeners.
 
-            download_json_button = gr.Button("Download JSON")
-            download_length_button = gr.Button("Download Article Format")
-            external_link = gr.HTML("<a href='https://notebooklm.google.com' target='_blank'>Go to NotebookLM</a>")
+                                    Do not read out numeric and cve numbers - they are jarring.
 
-    with gr.Row():
-        # Error display widget
-        error_output = gr.Textbox(label="Error Output", interactive=False)
+                                    Do not add fluff like generic security gyan about importance of code review etc, those are already known to listeners, just specifics of this weeks vulnerabilities will do.. Long answers all the time makes it monotonous.
+                                    Make it a 20 minute long or longer podcast if possible.  Give atleast 200 voice tags for the host + Same amount of voice tags for guest. Slowly count them and re-write the ssml if its falling short and then return the ssml."""]
+                            ],
 
+                            inputs=[ssml_prompt_input],
+                            label="Click to view example prompts"
+                        )
+
+            # Process Button
+            with gr.Row():
+                process_button = gr.Button("🚀 Process Advisories", variant="primary", size="lg")
+
+        # Results Tab
+        with gr.TabItem("📊 Results"):
+            with gr.Row():
+                # Left Results Column
+                with gr.Column(scale=1):
+                    gr.Markdown("### Raw Data Output")
+                    json_output = gr.JSON(label="Processed Advisories")
+                    download_json = gr.File(label="Download JSON")
+
+                    gr.Markdown("### Processing Status")
+                    status_output = gr.Textbox(show_label=False)
+
+                # Right Results Column
+                with gr.Column(scale=1):
+                    gr.Markdown("### Generated Content")
+                    ssml_output = gr.Textbox(label="SSML Script", lines=15, interactive=False)
+                    download_article = gr.File(label="Download SSML/Article")
+
+                    gr.Markdown("### Audio Output")
+                    audio_output = gr.Audio(label="Podcast Preview")
+
+                    gr.Markdown("### External Tools")
+                    external_link = gr.HTML("""
+                        <div style="margin-top: 15px;">
+                            <a href='https://notebooklm.google.com' target='_blank' class='gradio-button'>
+                            📓 Open NotebookLM
+                            </a>
+                        </div>
+                    """)
+
+    # --- Error Handling Section ---
+    gr.Markdown("### System Messages")
+    error_output = gr.Textbox(label="Error Logs", interactive=False, visible=True)
+
+    # --- CSS Styling ---
+    demo.css = """
+    .gradio-button {
+        background: linear-gradient(45deg, #4CAF50, #45a049);
+        color: white !important;
+        border-radius: 5px;
+        padding: 10px 20px;
+        text-decoration: none;
+    }
+    .gradio-button:hover {
+        background: linear-gradient(45deg, #45a049, #4CAF50);
+    }
+    .dark-background {
+        background-color: #f5f5f5;
+        padding: 15px;
+        border-radius: 8px;
+    }
+    """
+
+    # ... (keep the existing callback chain the same)
     temp_file_paths = gr.State()
     process_button.click(
         fn=process_dates,
@@ -232,31 +307,21 @@ with gr.Blocks() as demo:
         inputs=[json_output],
         outputs=temp_file_paths  # output variable name
     ).then(
+        fn=create_download_json,  # add the creation of the json download
+        inputs=[json_output],
+        outputs=[download_json]
+    ).then(
         fn=handle_error(SpeechService().generate_ssml_with_retry),
         inputs=[temp_file_paths, ssml_prompt_input],
         outputs=[ssml_output, error_output]
     ).then(
+        fn=create_download_article,  # add the creation of the article download
+        inputs=[ssml_output],
+        outputs=[download_article]
+    ).then(
         fn=handle_error(SpeechService().text_to_mp3),
         inputs=[ssml_output],
         outputs=[audio_output, error_output]
-    )
-
-    def download_json(json_data):
-        return download_file(json_data, "cveRAW.txt")
-
-    def download_article(article):
-        return download_file(article, "cveArticle.txt")
-
-    download_json_button.click(
-        fn=download_json,
-        inputs=[json_output],
-        outputs=[gr.File()]
-    )
-
-    download_length_button.click(
-        fn=download_article,
-        inputs=[ssml_output],
-        outputs=[gr.File()]
     )
 
 

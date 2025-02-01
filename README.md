@@ -2,6 +2,38 @@
 
 Using this tool, you can gather and convert CVEs published by `GitHub advisories` and `cve.org` using one user interface. The tool takes care of fetching the references referenced by the CVEs. So, if some details like code changes are in some reference, it will be fetched.
 
+<details>
+<summary>Sample JSON Output</summary>
+
+```json
+[
+  {
+    "ghsa_id": "GHSA-66fj-74pq-7rwx",
+    "cve_id": "CVE-2024-56829",
+    "url": "https://api.github.com/advisories/GHSA-66fj-74pq-7rwx",
+    "html_url": "",
+    "summary": "",
+    "description": "Huang Yaoshi Pharmaceutical Management Software through 16.0 allows arbitrary file upload via a .asp filename in the fileName element of the UploadFile element in a SOAP request to /XSDService.asmx.",
+    "severity": "critical",
+    "published_at": "2025-01-02T06:30:47Z",
+    "updated_at": "2025-01-02T06:30:52Z",
+    "source_code": "",
+    "cvss_score": 10,
+    "vulnerabilities": [],
+    "references": [
+      {
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-56829",
+        "type": "NIST",
+        "status_code": 200,
+        "info": "Huang Yaoshi Pharmaceutical Management Software through 16.0 allows arbitrary file upload via a .asp filename in the fileName element of the UploadFile element in a SOAP request to /XSDService.asmx."
+      }
+    ],
+    "assigner_name": ""
+  }
+]
+```
+
+</details>
 
 ### 🚀 Features
 * You can download the CVEs Json with all the references crawled.

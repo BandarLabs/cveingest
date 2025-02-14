@@ -46,6 +46,7 @@ Using this tool, you can gather and convert CVEs published by `GitHub advisories
 ```bash
 export GITHUB_TOKEN=
 
+# optional for ssml
 export GEMINI_API_KEY=
 
 #optional for podcast
